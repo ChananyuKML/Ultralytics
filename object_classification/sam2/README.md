@@ -10,13 +10,3 @@
 ```bash
 python inference.py <path-to-image> --pt <path-to-model-file>
 ```
-
-## Train
-```bash
-python train.py --pt <pre-trained-weight> --dataset <path-to-dataset-folder> --epochs <number-of-epochs>
-```
-
-## Inference
-```bash
-python inference.py <path-to-image> --pt <path-to-model-file>
-```
