@@ -10,7 +10,7 @@ args = parser.parse_args()
 model = RTDETR(f"{args.pt}.pt")
 
 # Inference Model
-results = model(f"{args.img}")
+results = model(f"{args.img}", save=True)
 
 # Accessing and iterating through the results
 for result in results:
