@@ -11,4 +11,4 @@ args = parser.parse_args()
 model = YOLO(f"{args.pt}-pose.yaml").load(f"{args.pt}.pt")
 
 # Train the model on the COCO8 example dataset for 100 epochs
-model.train(data=f"datasets/{args.dataset}.yaml", epochs=args.epochs, imgsz=640)
+model.train(data=f"datasets/{args.dataset}-pose.yaml", epochs=args.epochs, imgsz=640)

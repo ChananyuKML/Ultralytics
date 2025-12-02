@@ -1,7 +1,7 @@
 from ultralytics import YOLO
 import argparse
 
-def train(pt="yolo12n", dataset="coco8", epochs=100):
+def train(pt="yolo12n", dataset="dota8", epochs=100):
     model = YOLO(f"{pt}-obb.yaml").load(f"{pt}.pt")
     model.train(data=f"datasets/{dataset}.yaml", epochs=epochs, imgsz=640)
 

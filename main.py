@@ -7,10 +7,53 @@ import object_detection.yolo8.module as yolo8
 import object_detection.rtdetr.module as rtdetr
 import segment.sam2.module as sam2
 import segment.sam3.module as sam3
-
+from utils.training_utils import TrainerConfig, TrainingManager
 
 
 app = FastAPI()
+
+# Create global training manager
+training_manager = TrainingManager()
+train_var = TrainerConfig
+
+
+@app.get("/status")
+def get_status():
+    return {
+        "status":training_manager.status,
+        "current_epoch":training_manager.current_epoch,
+        "total_epochs":training_manager.total_epochs,
+        "eta_epoch":training_manager.eta_epoch,
+        "metrics":training_manager.metrics,
+        "loss":training_manager.loss,
+        "error":training_manager.error_msg
+    }
+
+@app.post("/training")
+def start_training(item: train_var):
+    if training_manager.status not in ['FINISHED', 'ERROR', 'CANCELLED']:
+        return {"message": "Training already in progress"}
+    
+    training_manager.start_training(item)
+    return {"message": "Training started"}
+
+
+@app.post("/shutdown")
+def shutdown_event():
+    if training_manager.status in ['TRAINING', 'VALIDATING']:
+        training_manager.cleanup_current_process()
+        return {"message": "Shutdown completed"}
+    elif training_manager.status in ['FINISHED', 'ERROR']:
+        training_manager.cleanup_current_process()
+        return {"message": "No active training found. Shutdown completed"}
+    else:
+        return {"message": "No active training session found"}
+
+
+
+
+
+
 
 class ModelInput(BaseModel):
     task: str = "obb"
@@ -22,6 +65,7 @@ class ModelInput(BaseModel):
     image: str = "img/car.png"
 
 @app.post("/run")
+
 def run(data: ModelInput):
     match data.task:
         case "obb":
