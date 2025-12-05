@@ -1,5 +1,6 @@
 from ultralytics import YOLO
 import os
+import sys
 import yaml
 import psutil
 from fastapi import FastAPI, BackgroundTasks
@@ -23,6 +24,8 @@ import object_detection.yolo8.module as yolo8
 import object_detection.rtdetr.module as rtdetr
 import segment.sam2.module as sam2
 import segment.sam3.module as sam3
+import segment.yolo12.module as yolos
+
 
 
 class TrainerConfig(BaseModel):
@@ -34,14 +37,16 @@ class TrainerConfig(BaseModel):
     train_label_path: str = f"{dataroot}/labels/train"
     val_label_path: str = f"{dataroot}/labels/val"
     epochs: int = 100
-    model: str = "sam2"
-    size: str = "t"
+    task: str = "obb"
+    model: str = "yolo12"
+    size: str = "n"
     device: str = "cuda:0"
     batch: int = 1
     workers: int = 1
 
 class TrainingManager:
     def __init__(self):
+        self.task = "obb"
         self.current_process = None
         self.status_queue = Queue()
         self.status = 'FINISHED'
@@ -52,12 +57,192 @@ class TrainingManager:
         self.total_epochs = 0
         self.error_msg = ''
         self._start_status_monitor()
+
+    def _start_status_monitor(self):
+        def monitor():
+            while True:
+                if not self.status_queue.empty():
+                    status_data = self.status_queue.get()
+                    self.status = status_data.get('status', self.status)
+
+                    metrics = status_data.get('metrics', self.metrics)
+                    if metrics:  # ถ้ามี metrics
+                        for key, value in metrics.items():
+                            if isinstance(value, float) and math.isnan(value):
+                                metrics[key] = None
+                    self.metrics = metrics
+                    self.loss = status_data.get('loss', self.loss)
+                    self.current_epoch = status_data.get('epoch', self.current_epoch)
+                    self.eta_epoch = status_data.get('eta_epoch', self.eta_epoch)
+                    self.error_msg = status_data.get('error', self.error_msg)
+
+        self.monitor_thread = Thread(target=monitor, daemon=True)
+        self.monitor_thread.start()
+
+    def get_child_processes(self, pid):
+        try:
+            parent = psutil.Process(pid)
+            children = parent.children(recursive=True)
+            return children
+        except psutil.NoSuchProcess:
+            return []
+
+    def kill_process_tree(self, pid):
+        try:
+            # Get all child processes
+            children = self.get_child_processes(pid)
+            
+            # First try to terminate gracefully
+            for child in children:
+                try:
+                    child.terminate()
+                except psutil.NoSuchProcess:
+                    pass
+
+            # Give them some time to terminate
+            _, alive = psutil.wait_procs(children, timeout=3)
+
+            # If still alive, kill forcefully
+            for child in alive:
+                try:
+                    child.kill()
+                except psutil.NoSuchProcess:
+                    pass
+
+            # Finally terminate the main process
+            if psutil.pid_exists(pid):
+                parent = psutil.Process(pid)
+                parent.terminate()
+                parent.wait(timeout=3)
+                if parent.is_running():
+                    parent.kill()
+
+        except Exception as e:
+            print(f"Error killing process tree: {e}")
+
+    def cleanup_current_process(self):
+        if self.current_process and self.current_process.is_alive():
+            try:
+                # Suppress DataLoader worker exit warnings
+                import warnings
+                warnings.filterwarnings("ignore", message="DataLoader worker*")
+                # Kill the entire process tree
+                self.kill_process_tree(self.current_process.pid)
+                
+                # Wait for the main process to finish
+                self.current_process.join(timeout=5)
+                
+                # If somehow still alive, force kill
+                if self.current_process.is_alive():
+                    self.current_process.terminate()
+                    
+            except Exception as e:
+                print(f"Error cleaning up process: {e}")
+            finally:
+                self.current_process = None
+                self.status_queue.put({'status': 'CANCELLED'})
+                
+        # Clean up any zombie processes
+        try:
+            current_process = psutil.Process()
+            children = current_process.children(recursive=True)
+            for child in children:
+                try:
+                    child.kill()
+                except psutil.NoSuchProcess:
+                    pass
+        except Exception as e:
+            print(f"Error cleaning up zombie processes: {e}")
+
+    def start_training(self, item: TrainerConfig):
+        self.cleanup_current_process()
+        self.total_epochs = item.epochs
+        self.current_epoch = 0
+        self.status = 'STARTING'
+        self.error_msg = ''
+        self.metrics = {}
+        self.loss = 0
+        self.eta_epoch = None
+        
+        self.current_process = Process(
+            target=self._training_worker, 
+            args=(item, self.status_queue)
+        )
+        self.current_process.start()
+
+    @staticmethod
+    def train_worker(item:TrainerConfig, status_queue: Queue): 
+        def update_status(status, **kwargs):
+            status_data = {'status': status, **kwargs}
+            status_queue.put(status_data)
+
+        try:
+            # Check available memory
+            system_memory = psutil.virtual_memory()
+            available_ram = system_memory.available / (1024 ** 3)
+            estimated_memory = item.batch * 0.5
+            if available_ram < (estimated_memory + 2.0):
+                update_status('ERROR', error="Insufficient memory to start training")
+                return
+
+            # Prepare data config
+            data_config = {
+                'path': item.path,
+                'train': item.train_path,
+                'val': item.val_path,
+                'test': item.test_path,
+                'nc': len(item.class_name),
+                'names': item.class_name
+            }
+
+            # Create temp config file
+            temp_config_path = 'temp_config.yaml'
+            with open(temp_config_path, 'w') as f:
+                yaml.dump(data_config, f, sort_keys=False)
+        
+        
+            def on_train_start(trainer):
+                update_status('TRAINING')
+        
+            def on_train_epoch_start(trainer):
+                update_status('TRAINING')
+
+            def on_train_epoch_end(trainer):
+                # ตรวจสอบค่า loss ก่อนส่ง
+                try:
+                    loss = trainer.loss.item()
+                    if math.isnan(loss) or math.isinf(loss):
+                        loss = None
+                except:
+                    loss = None
+                print(f"trainer.metrics: {trainer.metrics}")
+                
+                update_status('TRAINING', 
+                        epoch=trainer.epoch + 1,
+                        metrics=trainer.metrics,
+                        eta_epoch=trainer.epoch_time,
+                        loss=loss)
+
+            def on_val_start(trainer):
+                update_status('VALIDATING')
+        
+            def on_pretrain_routine_start(trainer):
+                update_status('PREPROCESSING')
+
+            model = yolos.get_model(
+
+            )
+            model.add_callback("on_train_start", on_train_start)
+            model.add_callback("on_train_epoch_end", on_train_epoch_end)
+            model.add_callback("on_val_start", on_val_start)
+            model.add_callback("on_pretrain_routine_start", on_pretrain_routine_start)
+            model.add_callback("on_train_epoch_start", on_train_epoch_start)
+            
+            # model.train(pt=f"{item.model}{item.size}", dataset=f"config.dataroot", epochs=item.epochs)
+            model.train(data="coco8-seg.yaml", epochs=100, imgsz=640) 
+            
+            update_status('FINISHED')
     
-    def start_training(self):
-        return 
-    
-    def get_status(self):
-        return
-    
-    def terminate_process(self):
-        return
+        except Exception as e:
+            update_status('ERROR', error=str(e))
+            print(f"Training error: {e}")    

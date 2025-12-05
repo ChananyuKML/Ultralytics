@@ -16,6 +16,22 @@ app = FastAPI()
 training_manager = TrainingManager()
 train_var = TrainerConfig
 
+class runOptions(BaseModel):
+    task: str = "obb"
+    mode: str = "run"
+    pt: str = "yolo12n"
+    dataset: str = "coco8"
+    epochs: int = 100
+    prompt: str = "A red car"
+    image: str = "img/car.png"
+
+@app.post("/training")
+def start_training(item: train_var):
+    if training_manager.status not in ['FINISHED', 'ERROR', 'CANCELLED']:
+        return {"message": "Training already in progress"}
+    
+    training_manager.start_training(item)
+    return {"message": "Training started"}
 
 @app.get("/status")
 def get_status():
@@ -29,15 +45,6 @@ def get_status():
         "error":training_manager.error_msg
     }
 
-@app.post("/training")
-def start_training(item: train_var):
-    if training_manager.status not in ['FINISHED', 'ERROR', 'CANCELLED']:
-        return {"message": "Training already in progress"}
-    
-    training_manager.start_training(item)
-    return {"message": "Training started"}
-
-
 @app.post("/shutdown")
 def shutdown_event():
     if training_manager.status in ['TRAINING', 'VALIDATING']:
@@ -49,24 +56,8 @@ def shutdown_event():
     else:
         return {"message": "No active training session found"}
 
-
-
-
-
-
-
-class ModelInput(BaseModel):
-    task: str = "obb"
-    mode: str = "run"
-    pt: str = "yolo12n"
-    dataset: str = "coco8"
-    epochs: int = 100
-    prompt: str = "A red car"
-    image: str = "img/car.png"
-
 @app.post("/run")
-
-def run(data: ModelInput):
+def run(data: runOptions):
     match data.task:
         case "obb":
             module = obb
@@ -82,13 +73,7 @@ def run(data: ModelInput):
             module = sam2 
         case "sam3":
             module = sam3 
-
-    match data.mode:
-        case "train":
-            process = module.train
-            result = process(data.pt, data.image, data.epochs)
-        case "run":
-            process = module.run
-            result = process(data.pt, data.image, data.prompt)
+    
+    result = module.run(data.pt, data.image, data.prompt)
             
     return {"result": result}
