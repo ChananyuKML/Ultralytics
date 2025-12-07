@@ -37,3 +37,16 @@ pip install ultralytics
     ├── train.py
     ├── inference.py
 ```
+
+## Build
+```bash
+docker buil -t ult .
+docker tun ult
+```
+
+## Run
+### Train
+Example trained already provided in train.ps1
+```bash
+train.ps1
+```
