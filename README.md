@@ -44,9 +44,18 @@ docker buil -t ult .
 docker tun ult
 ```
 
-## Run
+## Usage
 ### Train
 Example trained already provided in train.ps1
 ```bash
 train.ps1
+```
+### Check Training Status
+```bash
+Invoke-RestMethod -Uri "http://localhost:8000/status" -Method Get 
+```
+
+### Inturrupt Training Session
+```bash
+Invoke-RestMethod -Uri "http://localhost:8000/shutdown" -Method Post   
 ```
