@@ -27,7 +27,7 @@ class runOptions(BaseModel):
 
 @app.post("/training")
 def start_training(item: train_var):
-    if training_manager.status not in ['FINISHED', 'ERROR', 'CANCELLED']:
+    if training_manager.status not in ['FINISHED', 'ERROR', 'CANCELLED', 'IDLE']:
         return {"message": "Training already in progress"}
     
     training_manager.start_training(item)
@@ -72,6 +72,8 @@ def run(data: runOptions):
         case "sam2":
             module = sam2 
         case "sam3":
+            module = sam3 
+        case "yolos":
             module = sam3 
     
     result = module.run(data.pt, data.image, data.prompt)

@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from typing import List
 from pathlib import Path
 from datetime import datetime
-import onnx
+# import onnx
 import gc
 import torch
 from multiprocessing import Process, Queue
@@ -49,7 +49,7 @@ class TrainingManager:
         self.task = "obb"
         self.current_process = None
         self.status_queue = Queue()
-        self.status = 'FINISHED'
+        self.status = 'IDLE'
         self.metrics = {}
         self.loss = 0
         self.current_epoch = 0
@@ -61,20 +61,24 @@ class TrainingManager:
     def _start_status_monitor(self):
         def monitor():
             while True:
-                if not self.status_queue.empty():
-                    status_data = self.status_queue.get()
-                    self.status = status_data.get('status', self.status)
+                try:
+                    status_data = self.status_queue.get_nowait()
+                except:
+                    continue
 
-                    metrics = status_data.get('metrics', self.metrics)
-                    if metrics:  # ถ้ามี metrics
-                        for key, value in metrics.items():
-                            if isinstance(value, float) and math.isnan(value):
-                                metrics[key] = None
-                    self.metrics = metrics
-                    self.loss = status_data.get('loss', self.loss)
-                    self.current_epoch = status_data.get('epoch', self.current_epoch)
-                    self.eta_epoch = status_data.get('eta_epoch', self.eta_epoch)
-                    self.error_msg = status_data.get('error', self.error_msg)
+                self.status = status_data.get('status', self.status)
+
+                metrics = status_data.get('metrics', self.metrics)
+                if metrics:  # ถ้ามี metrics
+                    for key, value in metrics.items():
+                        if isinstance(value, float) and math.isnan(value):
+                            metrics[key] = None
+
+                self.metrics = metrics
+                self.loss = status_data.get('loss', self.loss)
+                self.current_epoch = status_data.get('epoch', self.current_epoch)
+                self.eta_epoch = status_data.get('eta_epoch', self.eta_epoch)
+                self.error_msg = status_data.get('error', self.error_msg)
 
         self.monitor_thread = Thread(target=monitor, daemon=True)
         self.monitor_thread.start()
@@ -89,70 +93,71 @@ class TrainingManager:
 
     def kill_process_tree(self, pid):
         try:
-            # Get all child processes
-            children = self.get_child_processes(pid)
-            
-            # First try to terminate gracefully
+            parent = psutil.Process(pid)
+            children = parent.children(recursive=True)
+
+        # 1. Kill all children FIRST
             for child in children:
                 try:
-                    child.terminate()
+                    print(f"Killing child PID={child.pid}")
+                    child.kill()  # SIGKILL immediately
                 except psutil.NoSuchProcess:
                     pass
 
-            # Give them some time to terminate
-            _, alive = psutil.wait_procs(children, timeout=3)
-
-            # If still alive, kill forcefully
-            for child in alive:
+            # Wait for children to actually die
+            gone, alive = psutil.wait_procs(children, timeout=2)
+            for p in alive:
                 try:
-                    child.kill()
-                except psutil.NoSuchProcess:
+                    print(f"Force killing stubborn child PID={p.pid}")
+                    p.kill()
+                except:
                     pass
 
-            # Finally terminate the main process
-            if psutil.pid_exists(pid):
-                parent = psutil.Process(pid)
-                parent.terminate()
-                parent.wait(timeout=3)
-                if parent.is_running():
-                    parent.kill()
+        # 2. Kill parent
+            try:
+                print(f"Killing parent PID={parent.pid}")
+                parent.kill()
+            except psutil.NoSuchProcess:
+                pass
 
         except Exception as e:
             print(f"Error killing process tree: {e}")
 
+
     def cleanup_current_process(self):
         if self.current_process and self.current_process.is_alive():
+
+            pid = self.current_process.pid
+            print(f"Cleanup starting for PID={pid}")
+
             try:
-                # Suppress DataLoader worker exit warnings
-                import warnings
-                warnings.filterwarnings("ignore", message="DataLoader worker*")
-                # Kill the entire process tree
-                self.kill_process_tree(self.current_process.pid)
-                
-                # Wait for the main process to finish
-                self.current_process.join(timeout=5)
-                
-                # If somehow still alive, force kill
-                if self.current_process.is_alive():
-                    self.current_process.terminate()
-                    
+                self.kill_process_tree(pid)
             except Exception as e:
-                print(f"Error cleaning up process: {e}")
-            finally:
-                self.current_process = None
-                self.status_queue.put({'status': 'CANCELLED'})
-                
-        # Clean up any zombie processes
+                print(f"Error cleaning up: {e}")
+
+        # Ensure process is removed
+            self.current_process.join(timeout=2)
+
+            if self.current_process.is_alive():
+                print("Process still alive - forcing terminate()")
+                self.current_process.terminate()
+
+            self.current_process = None
+            self.status_queue.put({"status": "CANCELLED"})
+
+        # Cleanup stray zombies owned by THIS process
         try:
-            current_process = psutil.Process()
-            children = current_process.children(recursive=True)
+            parent = psutil.Process()
+            children = parent.children(recursive=True)
             for child in children:
                 try:
+                    print(f"Killing zombie child PID={child.pid}")
                     child.kill()
-                except psutil.NoSuchProcess:
+                except:
                     pass
-        except Exception as e:
-            print(f"Error cleaning up zombie processes: {e}")
+        except:
+            pass
+
 
     def start_training(self, item: TrainerConfig):
         self.cleanup_current_process()
@@ -165,13 +170,13 @@ class TrainingManager:
         self.eta_epoch = None
         
         self.current_process = Process(
-            target=self._training_worker, 
+            target=self._train_worker, 
             args=(item, self.status_queue)
         )
         self.current_process.start()
 
     @staticmethod
-    def train_worker(item:TrainerConfig, status_queue: Queue): 
+    def _train_worker(item:TrainerConfig, status_queue: Queue): 
         def update_status(status, **kwargs):
             status_data = {'status': status, **kwargs}
             status_queue.put(status_data)
@@ -191,8 +196,8 @@ class TrainingManager:
                 'train': item.train_path,
                 'val': item.val_path,
                 'test': item.test_path,
-                'nc': len(item.class_name),
-                'names': item.class_name
+                # 'nc': len(item.class_name),
+                # 'names': item.class_name
             }
 
             # Create temp config file
@@ -208,7 +213,6 @@ class TrainingManager:
                 update_status('TRAINING')
 
             def on_train_epoch_end(trainer):
-                # ตรวจสอบค่า loss ก่อนส่ง
                 try:
                     loss = trainer.loss.item()
                     if math.isnan(loss) or math.isinf(loss):
@@ -229,16 +233,14 @@ class TrainingManager:
             def on_pretrain_routine_start(trainer):
                 update_status('PREPROCESSING')
 
-            model = yolos.get_model(
-
-            )
+            model = yolos.get_model()
+            
             model.add_callback("on_train_start", on_train_start)
             model.add_callback("on_train_epoch_end", on_train_epoch_end)
             model.add_callback("on_val_start", on_val_start)
             model.add_callback("on_pretrain_routine_start", on_pretrain_routine_start)
             model.add_callback("on_train_epoch_start", on_train_epoch_start)
             
-            # model.train(pt=f"{item.model}{item.size}", dataset=f"config.dataroot", epochs=item.epochs)
             model.train(data="coco8-seg.yaml", epochs=100, imgsz=640) 
             
             update_status('FINISHED')
