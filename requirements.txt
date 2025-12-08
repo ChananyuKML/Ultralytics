@@ -2,3 +2,6 @@ ultralytics
 fastapi
 pydantic
 uvicorn
+torch
+torchvision
+Pillow

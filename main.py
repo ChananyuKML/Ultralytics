@@ -7,6 +7,7 @@ import object_detection.yolo8.module as yolo8
 import object_detection.rtdetr.module as rtdetr
 import segment.sam2.module as sam2
 import segment.sam3.module as sam3
+import similarity.resnet.module as sim
 from utils.training_utils import TrainerConfig, TrainingManager
 
 
@@ -24,6 +25,8 @@ class runOptions(BaseModel):
     epochs: int = 100
     prompt: str = "A red car"
     image: str = "img/car.png"
+    img1: str = "img/car.png"
+    img2: str = "img/run.png"
 
 @app.post("/training")
 def start_training(item: train_var):
@@ -75,7 +78,10 @@ def run(data: runOptions):
             module = sam3 
         case "yolos":
             module = sam3 
-    
-    result = module.run(data.pt, data.image, data.prompt)
-            
+        case "sim":
+            module = sim 
+    if data.task is "sim":
+        result = module.run(data.img1, data.img2)
+    else:
+        result = module.run(data.pt, data.image, data.prompt)        
     return {"result": result}
