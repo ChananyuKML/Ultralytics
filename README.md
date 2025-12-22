@@ -41,7 +41,7 @@ pip install ultralytics
 ## Build
 ```bash
 docker build -t ult .
-docker run --shm-size 8 -v "$(pwd):/app" --gpus all ult -p 8000:8000 ult
+docker run --shm-size 8 -v "$(pwd):/app" --gpus all -p 8000:8000 ult
 ```
 
 ## Usage
