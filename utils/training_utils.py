@@ -236,7 +236,7 @@ class TrainingManager:
             model.add_callback("on_pretrain_routine_start", on_pretrain_routine_start)
             model.add_callback("on_train_epoch_start", on_train_epoch_start)
             
-            model.train(data=f"{item.dataroot}/dataset.yaml", 
+            model.train(data=f"datasets/{item.dataroot}/dataset.yaml", 
                         epochs=item.epochs, 
                         imgsz=item.img_size) 
             

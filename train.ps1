@@ -1,13 +1,7 @@
 # Define the JSON data payload for the request body
 $jsonPayload = @"
 {
-  "path": "C:/Users/YourUser/project/yolo",
-  "dataroot": "datasets/coco8",
-  "train_path": "datasets/coco8/images/train",
-  "val_path": "datasets/coco8/images/val",
-  "test_path": "datasets/coco8/images/test",
-  "train_label_path": "datasets/coco8/labels/train",
-  "val_label_path": "datasets/coco8/labels/val",
+  "dataroot": "17",
   "epochs": 10,
   "task": "obb",
   "model": "yolo12",
