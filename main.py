@@ -79,7 +79,5 @@ def run(data: runOptions):
             module = sam3 
         case "yolos":
             module = sam3 
-        case "sim":
-            module = sim 
     result = module.run(data.pt, data.image, data.prompt)        
     return {"result": result}

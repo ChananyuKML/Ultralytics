@@ -31,12 +31,8 @@ import segment.yolo12.module as yolos
 class TrainerConfig(BaseModel):
     path: str
     dataroot: str = "datasets/coco8"
-    train_path: str = f"{dataroot}/images/train"
-    val_path: str = f"{dataroot}/images/val"
-    test_path: str = f"{dataroot}/images/test"
-    train_label_path: str = f"{dataroot}/labels/train"
-    val_label_path: str = f"{dataroot}/labels/val"
     epochs: int = 100
+    img_size: int = 640
     task: str = "obb"
     model: str = "yolo12"
     size: str = "n"
@@ -189,22 +185,6 @@ class TrainingManager:
             if available_ram < (estimated_memory + 2.0):
                 update_status('ERROR', error="Insufficient memory to start training")
                 return
-
-            # Prepare data config
-            data_config = {
-                'path': item.path,
-                'train': item.train_path,
-                'val': item.val_path,
-                'test': item.test_path,
-                # 'nc': len(item.class_name),
-                # 'names': item.class_name
-            }
-
-            # Create temp config file
-            temp_config_path = 'temp_config.yaml'
-            with open(temp_config_path, 'w') as f:
-                yaml.dump(data_config, f, sort_keys=False)
-        
         
             def on_train_start(trainer):
                 update_status('TRAINING')
@@ -232,8 +212,23 @@ class TrainingManager:
         
             def on_pretrain_routine_start(trainer):
                 update_status('PREPROCESSING')
-
-            model = yolos.get_model()
+            match item.task:
+                case "obb":
+                    model = obb.get_model()
+                case "pose":
+                    model = pose.get_model()
+                case "segment":
+                    model = yolos.get_model()
+                case "detection":
+                    if item.model == "yolo12":
+                        model = yolo12.get_model()
+                    elif item.model == "yolo8":
+                        model = yolo8.get_model()
+                    elif item.model == "rtdetr":
+                        model = rtdetr.get_model()
+                    else:
+                        print("Error : unknown model")
+                        return        
             
             model.add_callback("on_train_start", on_train_start)
             model.add_callback("on_train_epoch_end", on_train_epoch_end)
@@ -241,7 +236,9 @@ class TrainingManager:
             model.add_callback("on_pretrain_routine_start", on_pretrain_routine_start)
             model.add_callback("on_train_epoch_start", on_train_epoch_start)
             
-            model.train(data="coco8-seg.yaml", epochs=100, imgsz=640) 
+            model.train(data=f"{item.dataroot}/dataset.yaml", 
+                        epochs=item.epochs, 
+                        imgsz=item.img_size) 
             
             update_status('FINISHED')
     

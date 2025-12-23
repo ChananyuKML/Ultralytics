@@ -10,3 +10,7 @@ def run(pt="yolov8n", img="img\car.png", prompt="car"):
     results = model(f"{img}", save=True)
     json_results = results[0].to_json()
     return json_results
+
+def get_model(pt="yolo8n"):
+    model = YOLO(f"{pt}.pt")
+    return model
