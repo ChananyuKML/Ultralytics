@@ -29,8 +29,7 @@ import segment.yolo12.module as yolos
 
 
 class TrainerConfig(BaseModel):
-    path: str
-    dataroot: str = "datasets/coco8"
+    dataroot: str = "coco8"
     epochs: int = 100
     img_size: int = 640
     task: str = "obb"
@@ -65,7 +64,7 @@ class TrainingManager:
                 self.status = status_data.get('status', self.status)
 
                 metrics = status_data.get('metrics', self.metrics)
-                if metrics:  # ถ้ามี metrics
+                if metrics:
                     for key, value in metrics.items():
                         if isinstance(value, float) and math.isnan(value):
                             metrics[key] = None
