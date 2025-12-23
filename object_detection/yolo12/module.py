@@ -11,6 +11,6 @@ def run(pt="yolo12n", img="img\car.png", prompt="car"):
     json_results = results[0].to_json()
     return json_results
 
-def get_model(pt="yolo12n"):
-    model = YOLO(f"{pt}.pt")
+def get_model(size="n"):
+    model = YOLO(f"yolo12{size}.pt")
     return model

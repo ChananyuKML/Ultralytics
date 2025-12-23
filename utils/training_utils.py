@@ -214,18 +214,18 @@ class TrainingManager:
                 update_status('PREPROCESSING')
             match item.task:
                 case "obb":
-                    model = obb.get_model()
+                    model = obb.get_model(item.size)
                 case "pose":
-                    model = pose.get_model()
+                    model = pose.get_model(item.size)
                 case "segment":
-                    model = yolos.get_model()
+                    model = yolos.get_model(item.size)
                 case "detection":
                     if item.model == "yolo12":
-                        model = yolo12.get_model()
+                        model = yolo12.get_model(item.size)
                     elif item.model == "yolo8":
-                        model = yolo8.get_model()
+                        model = yolo8.get_model(item.size)
                     elif item.model == "rtdetr":
-                        model = rtdetr.get_model()
+                        model = rtdetr.get_model(item.size)
                     else:
                         print("Error : unknown model")
                         return        

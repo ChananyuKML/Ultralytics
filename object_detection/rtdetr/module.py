@@ -11,6 +11,6 @@ def run(pt="rtdetr-l", img="img\car.png", prompt="car"):
     json_results = results[0].to_json()
     return json_results
 
-def get_model(pt="rtdetr-l"):
-    model = RTDETR(f"{pt}.pt")
+def get_model(size="l"):
+    model = RTDETR(f"rtsetr-{size}.pt")
     return model
