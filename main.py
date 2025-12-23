@@ -1,3 +1,5 @@
+import torch
+import torchvision.transforms as transforms
 from fastapi import FastAPI
 from pydantic import BaseModel
 import obb.module as obb
@@ -7,7 +9,6 @@ import object_detection.yolo8.module as yolo8
 import object_detection.rtdetr.module as rtdetr
 import segment.sam2.module as sam2
 import segment.sam3.module as sam3
-import similarity.resnet.module as sim
 from utils.training_utils import TrainerConfig, TrainingManager
 
 
@@ -80,8 +81,5 @@ def run(data: runOptions):
             module = sam3 
         case "sim":
             module = sim 
-    if data.task is "sim":
-        result = module.run(data.img1, data.img2)
-    else:
-        result = module.run(data.pt, data.image, data.prompt)        
+    result = module.run(data.pt, data.image, data.prompt)        
     return {"result": result}
