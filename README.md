@@ -41,14 +41,14 @@ pip install ultralytics
 ## Build
 ```bash
 docker build -t ult .
-docker run --shm-size 8 -v "$(pwd)/datasets:/app/datasets" --gpus all -p 8000:8000 ult
+docker run --shm-size=4g -v "$(pwd)/datasets:/app/datasets" --gpus all -p 8000:8000 ult
 ```
 
 ## Usage
 ### Train
 Example trained already provided in train.ps1
 ```bash
-train.ps1
+./train.ps1
 ```
 ### Check Training Status
 ```bash
