@@ -9,6 +9,7 @@ import object_detection.yolo8.module as yolo8
 import object_detection.rtdetr.module as rtdetr
 import segment.sam2.module as sam2
 import segment.sam3.module as sam3
+import segment.yolo12.module as yolos
 from utils.training_utils import TrainerConfig, TrainingManager
 
 
@@ -78,6 +79,6 @@ def run(data: runOptions):
         case "sam3":
             module = sam3 
         case "yolos":
-            module = sam3 
+            module = yolos
     result = module.run(data.pt, data.image, data.prompt)        
     return {"result": result}

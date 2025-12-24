@@ -237,7 +237,11 @@ class TrainingManager:
             
             model.train(data=f"datasets/{item.dataroot}/dataset.yaml", 
                         epochs=item.epochs, 
-                        imgsz=item.img_size) 
+                        imgsz=item.img_size,
+                        project=f"datasets/{item.dataroot}",
+                        name=f"train_{item.task}"
+                        ) 
+            model.export(format="onnx", opset=12)
             
             update_status('FINISHED')
     
