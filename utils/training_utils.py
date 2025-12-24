@@ -33,6 +33,7 @@ class TrainerConfig(BaseModel):
     epochs: int = 100
     img_size: int = 640
     task: str = "obb"
+    name: str = "train"
     model: str = "yolo12"
     size: str = "n"
     device: str = "cuda:0"
@@ -235,11 +236,14 @@ class TrainingManager:
             model.add_callback("on_pretrain_routine_start", on_pretrain_routine_start)
             model.add_callback("on_train_epoch_start", on_train_epoch_start)
             
-            model.train(data=f"datasets/{item.dataroot}/dataset.yaml", 
+            model.train(data=f"datasets/{item.dataroot}/dataset.yaml",
+                        device=item.device,
+                        batch=item.batch,
+                        workers=item.workers, 
                         epochs=item.epochs, 
                         imgsz=item.img_size,
-                        project=f"datasets/{item.dataroot}",
-                        name=f"train_{item.task}"
+                        project=f"datasets/{item.dataroot}/runs",
+                        name=f"{item.name}"
                         ) 
             model.export(format="onnx", opset=12)
             

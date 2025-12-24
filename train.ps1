@@ -3,12 +3,13 @@ $jsonPayload = @"
 {
   "dataroot": "17",
   "epochs": 10,
-  "task": "obb",
+  "task": "segment",
   "model": "yolo12",
   "size": "n",
-  "device": "cuda:0",
+  "device": "cpu",
   "batch": 1,
-  "workers": 1
+  "workers": 1,
+  "name": "train_24_12_2025_testonly"
 }
 "@
 
