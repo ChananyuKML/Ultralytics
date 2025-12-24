@@ -1,4 +1,5 @@
 from ultralytics import YOLO
+import time
 import os
 import sys
 import yaml
@@ -60,6 +61,7 @@ class TrainingManager:
                 try:
                     status_data = self.status_queue.get_nowait()
                 except:
+                    time.sleep(0.1)
                     continue
 
                 self.status = status_data.get('status', self.status)
